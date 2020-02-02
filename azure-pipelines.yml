@@ -1,0 +1,74 @@
+# PHP
+# Test and package your PHP project.
+# Add steps that run tests, save build artifacts, deploy, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/languages/php
+
+trigger:
+- master
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  phpVersion: 7.2
+
+steps:
+- script: |
+    sudo update-alternatives --set php /usr/bin/php$(phpVersion)
+    sudo update-alternatives --set phar /usr/bin/phar$(phpVersion)
+    sudo update-alternatives --set phpdbg /usr/bin/phpdbg$(phpVersion)
+    sudo update-alternatives --set php-cgi /usr/bin/php-cgi$(phpVersion)
+    sudo update-alternatives --set phar.phar /usr/bin/phar.phar$(phpVersion)
+    php -version
+  displayName: 'Use PHP version $(phpVersion)'
+
+- task: Bash@3
+  inputs:
+    targetType: 'inline'
+    script: |
+      php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
+      php -r "if (hash_file('sha384', 'composer-setup.php') === 'c5b9b6d368201a9db6f74e2611495f369991b72d9c8cbd3ffbc63edff210eb73d46ffbfce88669ad33695ef77dc76976') { echo 'Installer verified'; } else { echo 'Installer corrupt'; unlink('composer-setup.php'); } echo PHP_EOL;"
+      php composer-setup.php
+      php -r "unlink('composer-setup.php');"
+      composer -V
+      composer install
+    noRc: false
+  displayName: 'Install Composer'
+
+- task: Bash@3
+  inputs:
+    targetType: 'inline'
+    script: |  
+      export SONAR_SCANNER_VERSION=4.2.0.1873
+      export SONAR_SCANNER_HOME=$HOME/.sonar/sonar-scanner-$SONAR_SCANNER_VERSION-linux
+      rm -rf $SONAR_SCANNER_HOME
+      mkdir -p $SONAR_SCANNER_HOME
+      curl -sSLo $HOME/.sonar/sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-$SONAR_SCANNER_VERSION-linux.zip
+      unzip $HOME/.sonar/sonar-scanner.zip -d $HOME/.sonar/
+      rm $HOME/.sonar/sonar-scanner.zip
+      export PATH=$SONAR_SCANNER_HOME/bin:$PATH
+      export SONAR_SCANNER_OPTS="-server"
+      sonar-scanner \
+      -Dsonar.projectKey=karlosarr_blog-laravel \
+      -Dsonar.organization=karlosarr \
+      -Dsonar.sources=. \
+      -Dsonar.host.url=https://sonarcloud.io \
+      -Dsonar.login=57d84cc96cd56fa01f6616f3bbf8e72aadde19fc
+    noRc: false
+  displayName: 'Install SonarQube'
+
+- task: Bash@3
+  inputs:
+    targetType: 'inline'
+    script: |
+      echo 'Hello world'
+      pwd
+      ls -lsa
+      echo '$(Build.ArtifactStagingDirectory)'
+      cd $(Build.ArtifactStagingDirectory)
+
+- task: PublishBuildArtifacts@1
+  inputs:
+    PathtoPublish: '/home/vsts/work/1/s'
+    ArtifactName: 'drop'
+    publishLocation: 'Container'
